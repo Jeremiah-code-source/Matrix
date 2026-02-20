@@ -2,19 +2,31 @@
 const canvas = document.getElementById('matrix');
 const ctx = canvas.getContext('2d');
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// Handle window resize for responsive design
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const fontSize = 16;
-const columns = canvas.width / fontSize;
-const drops = Array(Math.floor(columns)).fill(1);
+let columns = Math.floor(canvas.width / fontSize);
+let drops = Array(columns).fill(1);
+
+// Update columns and drops on resize
+window.addEventListener('resize', () => {
+    columns = Math.floor(canvas.width / fontSize);
+    drops = Array(columns).fill(1);
+});
 
 function drawMatrix() {
-ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-ctx.fillRect(0, 0, canvas.width, canvas.height);
-ctx.fillStyle = "#4169E1"; // Blue matrix text  
-ctx.font = fontSize + "px arial";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#4169E1"; // Blue matrix text  
+    ctx.font = fontSize + "px arial";
 
     for (let i = 0; i < drops.length; i++) {
         const text = letters.charAt(Math.floor(Math.random() * letters.length));
@@ -45,9 +57,20 @@ const DB_NAME = 'BirthdayMediaDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'mediaFiles';
 
-// Initialize IndexedDB
+// Check for IndexedDB support
+const indexedDBSupported = (function() {
+    return !!(window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB);
+})();
+
+// Initialize IndexedDB with browser prefixes
 function initDB() {
+    if (!indexedDBSupported) {
+        console.warn('IndexedDB not supported in this browser');
+        return Promise.reject('IndexedDB not supported');
+    }
+    
     return new Promise((resolve, reject) => {
+        const indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
         const request = indexedDB.open(DB_NAME, DB_VERSION);
         
         request.onerror = () => reject(request.error);
@@ -135,7 +158,18 @@ const timer = setInterval(() => {
         // Show video and/or GIF based on configuration
         if (mediaConfig.showVideo && videoElement) {
             videoElement.classList.remove('hidden');
-            videoElement.play();
+            
+            // Handle autoplay for mobile devices
+            const playPromise = videoElement.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    console.log('Video autoplay successful');
+                }).catch((error) => {
+                    console.log('Autoplay prevented, user interaction required:', error);
+                    // On mobile, user may need to tap to play
+                });
+            }
         }
         if (mediaConfig.showGif && gifElement) {
             gifElement.classList.remove('hidden');
@@ -154,11 +188,25 @@ const gifFileInput = document.getElementById('gif-file-input');
 videoElement.addEventListener('click', (e) => {
     // Prevent video controls from interfering
     e.preventDefault();
+    e.stopPropagation();
+    videoFileInput.click();
+});
+
+// For mobile: also handle touch events
+videoElement.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     videoFileInput.click();
 });
 
 // Click on GIF to change it
 gifElement.addEventListener('click', () => {
+    gifFileInput.click();
+});
+
+// For mobile: also handle touch events for GIF
+gifElement.addEventListener('touchend', (e) => {
+    e.preventDefault();
     gifFileInput.click();
 });
 
@@ -203,7 +251,21 @@ function loadVideoFromUrl(url) {
         source.src = url;
         videoElement.load();
         videoElement.classList.remove('hidden');
-        videoElement.play();
+        
+        // For mobile devices, especially iOS, we need user interaction to play
+        const playPromise = videoElement.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                // Autoplay started successfully
+                console.log('Video playing');
+            }).catch((error) => {
+                // Autoplay was prevented, show play button
+                console.log('Autoplay prevented:', error);
+                videoElement.setAttribute('controls', 'controls');
+            });
+        }
+        
         mediaConfig.showVideo = true;
     }
 }
