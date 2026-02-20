@@ -1,0 +1,34 @@
+# Visual Studio files
+.vs/
+*.vsidx
+*.suo
+*.user
+
+# IDE files
+.vscode/
+.idea/
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation (don't need on server)
+*.md
+README.md

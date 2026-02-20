@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #000;
+            color: #4169E1;
+        }
+        .container {
+            background: rgba(65, 105, 225, 0.1);
+            border: 2px solid #4169E1;
+            border-radius: 10px;
+            padding: 30px;
+        }
+        h1 {
+            text-align: center;
+            color: #1E90FF;
+        }
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background: rgba(0, 255, 0, 0.2);
+            border: 2px solid #0f0;
+            color: #0f0;
+        }
+        .error {
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid #f00;
+            color: #f00;
+        }
+        .info {
+            background: rgba(65, 105, 225, 0.2);
+            border: 2px solid #4169E1;
+            color: #4169E1;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #4169E1;
+            color: #fff;
+            border-radius: 5px;
+        }
+        button {
+            background: #4169E1;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1E90FF;
+        }
+        pre {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>?? Backend Connection Test</h1>
+        
+        <div id="config-check" class="status info">
+            ?? Checking configuration...
+        </div>
+
+        <div style="margin: 20px 0;">
+            <label>Backend URL:</label>
+            <input type="text" id="backend-url" placeholder="https://your-backend.vercel.app">
+            <button onclick="testBackend()">?? Test Connection</button>
+            <button onclick="testUpload()">?? Test Upload</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        // Check config on load
+        window.onload = function() {
+            const configCheck = document.getElementById('config-check');
+            const urlInput = document.getElementById('backend-url');
+            
+            if (typeof CONFIG !== 'undefined') {
+                if (CONFIG.USE_BACKEND) {
+                    configCheck.className = 'status success';
+                    configCheck.innerHTML = '? Backend ENABLED<br>URL: ' + CONFIG.BACKEND_URL;
+                    urlInput.value = CONFIG.BACKEND_URL;
+                } else {
+                    configCheck.className = 'status error';
+                    configCheck.innerHTML = '? Backend DISABLED<br>Set USE_BACKEND: true in config.js';
+                }
+            } else {
+                configCheck.className = 'status error';
+                configCheck.innerHTML = '? Config.js not loaded';
+            }
+        };
+
+        async function testBackend() {
+            const url = document.getElementById('backend-url').value;
+            const results = document.getElementById('results');
+            
+            results.innerHTML = '<div class="status info">?? Testing connection...</div>';
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.status === 'Server is running') {
+                    results.innerHTML = `
+                        <div class="status success">
+                            ? Backend is working!
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="status error">
+                            ?? Unexpected response
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="status error">
+                        ? Connection failed
+                        <pre>${error.message}</pre>
+                        <p>Make sure:</p>
+                        <ul>
+                            <li>Backend URL is correct</li>
+                            <li>Backend is deployed</li>
+                            <li>No CORS issues</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        async function testUpload() {
+            const url = document.getElementById('backend-url').value;
+            const results = document.getElementById('results');
+            
+            results.innerHTML = '<div class="status info">?? Testing upload endpoint...</div>';
+            
+            try {
+                // Create a small test file
+                const blob = new Blob(['test video content'], { type: 'video/mp4' });
+                const formData = new FormData();
+                formData.append('video', blob, 'test.mp4');
+                
+                const response = await fetch(`${url}/upload-video`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    results.innerHTML = `
+                        <div class="status success">
+                            ? Upload endpoint working!
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="status error">
+                            ?? Upload failed
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="status error">
+                        ? Upload test failed
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

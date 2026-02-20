@@ -2,16 +2,16 @@
 // Edit these values based on your deployment
 
 const CONFIG = {
-    // Set to true when you deploy a backend server
-    USE_BACKEND: false,
+// Set to true when you deploy a backend server
+USE_BACKEND: true,
     
-    // Add your deployed backend URL here
-    // Examples:
-    // - Vercel: 'https://your-app.vercel.app'
-    // - Railway: 'https://your-app.railway.app'
-    // - Heroku: 'https://your-app.herokuapp.com'
-    // - Custom: 'https://yourdomain.com'
-    BACKEND_URL: 'YOUR_BACKEND_URL_HERE',
+// Add your deployed backend URL here
+// Examples:
+// - Vercel: 'https://your-app.vercel.app'
+// - Railway: 'https://your-app.railway.app'
+// - Heroku: 'https://your-app.herokuapp.com'
+// - Custom: 'https://yourdomain.com'
+BACKEND_URL: 'https://matrix-three-jet.vercel.app',
     
     // Maximum file size for local storage (in MB)
     MAX_LOCAL_FILE_SIZE: 50,

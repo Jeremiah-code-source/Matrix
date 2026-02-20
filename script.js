@@ -50,11 +50,11 @@ const mediaConfig = {
     showGif: false,   // Set to true to show GIF
     videoPath: 'birthday.mp4',  // Path to your video file
     gifPath: 'birthday.gif',     // Path to your GIF file
-    backendURL: 'YOUR_BACKEND_URL_HERE'  // Add your backend URL here
+    backendURL: typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : 'YOUR_BACKEND_URL_HERE'
 };
 
 // Use both IndexedDB (for local storage) and backend (for cross-device sharing)
-const USE_BACKEND = false;  // Set to true when you have a backend server
+const USE_BACKEND = typeof CONFIG !== 'undefined' ? CONFIG.USE_BACKEND : false;
 
 // IndexedDB setup for storing large video files locally
 const DB_NAME = 'BirthdayMediaDB';
