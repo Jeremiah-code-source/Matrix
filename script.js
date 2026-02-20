@@ -49,10 +49,14 @@ const mediaConfig = {
     showVideo: true,  // Set to true to show video
     showGif: false,   // Set to true to show GIF
     videoPath: 'birthday.mp4',  // Path to your video file
-    gifPath: 'birthday.gif'      // Path to your GIF file
+    gifPath: 'birthday.gif',     // Path to your GIF file
+    backendURL: 'YOUR_BACKEND_URL_HERE'  // Add your backend URL here
 };
 
-// IndexedDB setup for storing large video files
+// Use both IndexedDB (for local storage) and backend (for cross-device sharing)
+const USE_BACKEND = false;  // Set to true when you have a backend server
+
+// IndexedDB setup for storing large video files locally
 const DB_NAME = 'BirthdayMediaDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'mediaFiles';
@@ -111,9 +115,29 @@ async function getFileFromIndexedDB(key) {
     });
 }
 
-// Load saved media from IndexedDB
+// Load saved media from IndexedDB and/or backend
 async function loadSavedMedia() {
     try {
+        // First, try to load from backend if available
+        if (USE_BACKEND && mediaConfig.backendURL) {
+            try {
+                const response = await fetch(`${mediaConfig.backendURL}/get-media`);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.videoURL) {
+                        mediaConfig.videoPath = data.videoURL;
+                        mediaConfig.showVideo = true;
+                        console.log('Video loaded from backend');
+                        return; // Exit if backend load successful
+                    }
+                }
+            } catch (backendError) {
+                console.log('Backend not available, falling back to local storage');
+            }
+        }
+        
+        // Fallback to IndexedDB for local storage
         const savedVideo = await getFileFromIndexedDB('lastUsedVideo');
         const savedGif = await getFileFromIndexedDB('lastUsedGif');
         
@@ -121,6 +145,7 @@ async function loadSavedMedia() {
             const videoUrl = URL.createObjectURL(savedVideo);
             mediaConfig.videoPath = videoUrl;
             mediaConfig.showVideo = true;
+            console.log('Video loaded from local IndexedDB');
         }
         
         if (savedGif) {
@@ -235,12 +260,35 @@ videoFileInput.addEventListener('change', async (e) => {
         const url = URL.createObjectURL(file);
         loadVideoFromUrl(url);
         
-        // Save file to IndexedDB
+        // Save file to IndexedDB for local access
         try {
             await saveFileToIndexedDB('lastUsedVideo', file);
-            console.log('Video saved successfully');
+            console.log('Video saved to local IndexedDB');
         } catch (error) {
             console.error('Error saving video to IndexedDB:', error);
+        }
+        
+        // Upload to backend for cross-device sharing
+        if (USE_BACKEND && mediaConfig.backendURL) {
+            try {
+                const formData = new FormData();
+                formData.append('video', file);
+                
+                const response = await fetch(`${mediaConfig.backendURL}/upload-video`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Video uploaded to backend:', data);
+                    alert('Video uploaded! It will now be available on all devices.');
+                } else {
+                    console.error('Failed to upload video to backend');
+                }
+            } catch (uploadError) {
+                console.error('Error uploading to backend:', uploadError);
+            }
         }
     }
 });
