@@ -181,8 +181,11 @@ const timer = setInterval(() => {
         messageElement.classList.remove('hidden');
         
         // Show video and/or GIF based on configuration
+        const noVideoMessage = document.getElementById('no-video-message');
+        
         if (mediaConfig.showVideo && videoElement) {
             videoElement.classList.remove('hidden');
+            if (noVideoMessage) noVideoMessage.classList.add('hidden');
             
             // Handle autoplay for mobile devices
             const playPromise = videoElement.play();
@@ -195,7 +198,17 @@ const timer = setInterval(() => {
                     // On mobile, user may need to tap to play
                 });
             }
+        } else {
+            // Show "no video" message
+            if (noVideoMessage) {
+                noVideoMessage.classList.remove('hidden');
+                // Make it clickable to upload video
+                noVideoMessage.addEventListener('dblclick', () => {
+                    videoFileInput.click();
+                });
+            }
         }
+        
         if (mediaConfig.showGif && gifElement) {
             gifElement.classList.remove('hidden');
         }
@@ -318,6 +331,12 @@ function loadVideoFromUrl(url) {
         videoElement.load();
         videoElement.classList.remove('hidden');
         
+        // Hide no-video message
+        const noVideoMessage = document.getElementById('no-video-message');
+        if (noVideoMessage) {
+            noVideoMessage.classList.add('hidden');
+        }
+        
         // For mobile devices, especially iOS, we need user interaction to play
         const playPromise = videoElement.play();
         
@@ -325,7 +344,7 @@ function loadVideoFromUrl(url) {
             playPromise.then(() => {
                 // Autoplay started successfully
                 console.log('Video playing');
-            }).catch((error) => {
+            }).catch((error) {
                 // Autoplay was prevented, show play button
                 console.log('Autoplay prevented:', error);
                 videoElement.setAttribute('controls', 'controls');

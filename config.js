@@ -3,7 +3,9 @@
 
 const CONFIG = {
 // Set to true when you deploy a backend server
-USE_BACKEND: true,
+// Note: Currently using IndexedDB (local storage per device)
+// For true cross-device sharing, you need external storage (S3, Cloudinary, etc.)
+USE_BACKEND: false,
     
 // Add your deployed backend URL here
 // Examples:
