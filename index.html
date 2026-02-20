@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Birthday!</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="matrix"></canvas>
+
+    <div id="container">
+        <div id="countdown">3</div>
+        <div id="message" class="hidden">
+            <h1 class="glow">MAAK n BIER!</h1>
+            <div class="animation-container">
+                <p>😎🍻🥃</p>
+            </div>
+            <div class="media-container">
+                <!-- Add your video here -->
+                <video id="birthday-video" class="media-item hidden clickable" controls autoplay loop muted title="Click to change video">
+                    <source src="birthday.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <!-- Add your GIF here -->
+                <img id="birthday-gif" class="media-item hidden clickable" src="birthday.gif" alt="Birthday Animation" title="Click to change GIF">
+                <!-- Hidden file inputs -->
+                <input type="file" id="video-file-input" accept="video/*" style="display: none;">
+                <input type="file" id="gif-file-input" accept="image/gif" style="display: none;">
+            </div>
+            <p class="sub-text">Wishing you the best day ever!</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
