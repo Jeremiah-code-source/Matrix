@@ -180,34 +180,52 @@ const timer = setInterval(() => {
 // Initialize media on page load
 setupMedia();
 
-// Media change functionality - click on video/gif to change
+// Media change functionality - double-click on video/gif to change
 const videoFileInput = document.getElementById('video-file-input');
 const gifFileInput = document.getElementById('gif-file-input');
 
-// Click on video to change it
-videoElement.addEventListener('click', (e) => {
+// Double-click on video to change it
+videoElement.addEventListener('dblclick', (e) => {
     // Prevent video controls from interfering
     e.preventDefault();
     e.stopPropagation();
     videoFileInput.click();
 });
 
-// For mobile: also handle touch events
+// For mobile: handle double-tap
+let videoLastTap = 0;
 videoElement.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    videoFileInput.click();
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - videoLastTap;
+    
+    if (tapLength < 500 && tapLength > 0) {
+        // Double tap detected
+        e.preventDefault();
+        e.stopPropagation();
+        videoFileInput.click();
+    }
+    
+    videoLastTap = currentTime;
 });
 
-// Click on GIF to change it
-gifElement.addEventListener('click', () => {
+// Double-click on GIF to change it
+gifElement.addEventListener('dblclick', () => {
     gifFileInput.click();
 });
 
-// For mobile: also handle touch events for GIF
+// For mobile: handle double-tap for GIF
+let gifLastTap = 0;
 gifElement.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    gifFileInput.click();
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - gifLastTap;
+    
+    if (tapLength < 500 && tapLength > 0) {
+        // Double tap detected
+        e.preventDefault();
+        gifFileInput.click();
+    }
+    
+    gifLastTap = currentTime;
 });
 
 // Load video from file upload
