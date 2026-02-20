@@ -40,25 +40,79 @@ const mediaConfig = {
     gifPath: 'birthday.gif'      // Path to your GIF file
 };
 
-// Load saved media from localStorage
-function loadSavedMedia() {
-    const savedVideo = localStorage.getItem('lastUsedVideo');
-    const savedGif = localStorage.getItem('lastUsedGif');
-    
-    if (savedVideo) {
-        mediaConfig.videoPath = savedVideo;
-        mediaConfig.showVideo = true;
-    }
-    
-    if (savedGif) {
-        mediaConfig.gifPath = savedGif;
-        mediaConfig.showGif = true;
+// IndexedDB setup for storing large video files
+const DB_NAME = 'BirthdayMediaDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'mediaFiles';
+
+// Initialize IndexedDB
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+    });
+}
+
+// Save file to IndexedDB
+async function saveFileToIndexedDB(key, file) {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(file, key);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Get file from IndexedDB
+async function getFileFromIndexedDB(key) {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(key);
+        
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Load saved media from IndexedDB
+async function loadSavedMedia() {
+    try {
+        const savedVideo = await getFileFromIndexedDB('lastUsedVideo');
+        const savedGif = await getFileFromIndexedDB('lastUsedGif');
+        
+        if (savedVideo) {
+            const videoUrl = URL.createObjectURL(savedVideo);
+            mediaConfig.videoPath = videoUrl;
+            mediaConfig.showVideo = true;
+        }
+        
+        if (savedGif) {
+            const gifUrl = URL.createObjectURL(savedGif);
+            mediaConfig.gifPath = gifUrl;
+            mediaConfig.showGif = true;
+        }
+    } catch (error) {
+        console.error('Error loading saved media:', error);
     }
 }
 
 // Apply media configuration
-function setupMedia() {
-    loadSavedMedia();
+async function setupMedia() {
+    await loadSavedMedia();
     
     if (mediaConfig.showVideo && videoElement) {
         videoElement.querySelector('source').src = mediaConfig.videoPath;
@@ -109,20 +163,36 @@ gifElement.addEventListener('click', () => {
 });
 
 // Load video from file upload
-videoFileInput.addEventListener('change', (e) => {
+videoFileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
         const url = URL.createObjectURL(file);
         loadVideoFromUrl(url);
+        
+        // Save file to IndexedDB
+        try {
+            await saveFileToIndexedDB('lastUsedVideo', file);
+            console.log('Video saved successfully');
+        } catch (error) {
+            console.error('Error saving video to IndexedDB:', error);
+        }
     }
 });
 
 // Load GIF from file upload
-gifFileInput.addEventListener('change', (e) => {
+gifFileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
         const url = URL.createObjectURL(file);
         loadGifFromUrl(url);
+        
+        // Save file to IndexedDB
+        try {
+            await saveFileToIndexedDB('lastUsedGif', file);
+            console.log('GIF saved successfully');
+        } catch (error) {
+            console.error('Error saving GIF to IndexedDB:', error);
+        }
     }
 });
 
@@ -135,9 +205,6 @@ function loadVideoFromUrl(url) {
         videoElement.classList.remove('hidden');
         videoElement.play();
         mediaConfig.showVideo = true;
-        
-        // Save to localStorage
-        localStorage.setItem('lastUsedVideo', url);
     }
 }
 
@@ -147,9 +214,6 @@ function loadGifFromUrl(url) {
         gifElement.src = url;
         gifElement.classList.remove('hidden');
         mediaConfig.showGif = true;
-        
-        // Save to localStorage
-        localStorage.setItem('lastUsedGif', url);
     }
 }
 
