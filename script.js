@@ -330,7 +330,7 @@ function loadVideoFromUrl(url) {
             playPromise.then(() => {
                 // Autoplay started successfully
                 console.log('Video playing');
-            }).catch((error) {
+            }).catch((error) => {
                 // Autoplay was prevented, show play button
                 console.log('Autoplay prevented:', error);
                 videoElement.setAttribute('controls', 'controls');
