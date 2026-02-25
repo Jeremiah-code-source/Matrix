@@ -117,6 +117,9 @@ async function getFileFromIndexedDB(key) {
     });
 }
 
+// Track the SHA of the currently loaded video to detect remote changes
+let currentVideoSHA = null;
+
 // Load saved media — fetches video URL from Cloudflare Worker (backed by GitHub)
 async function loadSavedMedia() {
     try {
@@ -126,6 +129,10 @@ async function loadSavedMedia() {
             try {
                 const test = await fetch(rawURL, { method: 'HEAD' });
                 if (test.ok) {
+                    // Record the current SHA so polling can detect future changes
+                    if (USE_BACKEND) {
+                        currentVideoSHA = await GitHubVideoService.getCurrentSHA();
+                    }
                     mediaConfig.videoPath = `${rawURL}?t=${Date.now()}`;
                     mediaConfig.showVideo = true;
                     console.log('Video loaded from GitHub raw URL:', rawURL);
@@ -224,6 +231,26 @@ async function init() {
 
 init();
 
+// Poll GitHub every 10 seconds — silently swap the video if another device uploaded a new one
+if (USE_BACKEND) {
+    setInterval(async () => {
+        try {
+            const latestSHA = await GitHubVideoService.getCurrentSHA();
+            if (latestSHA && latestSHA !== currentVideoSHA) {
+                currentVideoSHA = latestSHA;
+                const newURL = `${CONFIG.GITHUB_RAW_URL}?t=${Date.now()}`;
+                mediaConfig.videoPath = newURL;
+                videoElement.src = newURL;
+                videoElement.load();
+                videoElement.play().catch(() => {});
+                console.log('New video detected — updated automatically.');
+            }
+        } catch (e) {
+            // Polling errors are silent — don't disrupt the page
+        }
+    }, 10000);
+}
+
 // Media change functionality - double-click on video/gif to change
 const videoFileInput = document.getElementById('video-file-input');
 const gifFileInput = document.getElementById('gif-file-input');
@@ -292,12 +319,12 @@ videoFileInput.addEventListener('change', async (e) => {
             const noVideoMessage = document.getElementById('no-video-message');
             try {
                 if (noVideoMessage) noVideoMessage.innerText = '? Uploading to GitHub...';
-                await GitHubVideoService.uploadVideo(file);
-                // Cache-bust so all devices load the new video, not the browser-cached old one
-                const rawURL = `${CONFIG.GITHUB_RAW_URL}?t=${Date.now()}`;
-                mediaConfig.videoPath = rawURL;
-                videoElement.src = rawURL;
-                videoElement.load();
+                const result = await GitHubVideoService.uploadVideo(file);
+                // Store the new SHA so the poller on this device ignores its own upload
+                currentVideoSHA = result.content ? result.content.sha : currentVideoSHA;
+                // Keep playing the local blob — GitHub CDN takes a few seconds to propagate.
+                // Update mediaConfig so other devices get the new URL on their next load.
+                mediaConfig.videoPath = `${CONFIG.GITHUB_RAW_URL}?t=${Date.now()}`;
                 if (noVideoMessage) noVideoMessage.classList.add('hidden');
                 console.log('Video uploaded to GitHub — available on all devices.');
             } catch (uploadError) {

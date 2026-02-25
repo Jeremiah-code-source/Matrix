@@ -70,5 +70,15 @@ const GitHubVideoService = (() => {
         return response.json();
     }
 
-    return { uploadVideo };
+    // Returns the current SHA of the video file on GitHub (used to detect changes)
+    async function getCurrentSHA() {
+        const token    = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_TOKEN    : null;
+        const owner    = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_OWNER    : null;
+        const repo     = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_REPO     : null;
+        const branch   = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_BRANCH   : 'main';
+        const filePath = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_FILE_PATH : 'current-video.mp4';
+        return getFileSHA(token, owner, repo, branch, filePath);
+    }
+
+    return { uploadVideo, getCurrentSHA };
 })();
