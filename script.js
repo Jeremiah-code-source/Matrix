@@ -126,7 +126,7 @@ async function loadSavedMedia() {
             try {
                 const test = await fetch(rawURL, { method: 'HEAD' });
                 if (test.ok) {
-                    mediaConfig.videoPath = rawURL;
+                    mediaConfig.videoPath = `${rawURL}?t=${Date.now()}`;
                     mediaConfig.showVideo = true;
                     console.log('Video loaded from GitHub raw URL:', rawURL);
                     return;
@@ -293,8 +293,8 @@ videoFileInput.addEventListener('change', async (e) => {
             try {
                 if (noVideoMessage) noVideoMessage.innerText = '? Uploading to GitHub...';
                 await GitHubVideoService.uploadVideo(file);
-                // Point all devices at the updated raw URL
-                const rawURL = CONFIG.GITHUB_RAW_URL;
+                // Cache-bust so all devices load the new video, not the browser-cached old one
+                const rawURL = `${CONFIG.GITHUB_RAW_URL}?t=${Date.now()}`;
                 mediaConfig.videoPath = rawURL;
                 videoElement.src = rawURL;
                 videoElement.load();
