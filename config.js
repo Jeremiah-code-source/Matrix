@@ -5,8 +5,8 @@ const CONFIG = {
     // Cloudflare Worker acts as a proxy bridge to GitHub
     USE_BACKEND: true,
 
-    // Your deployed Cloudflare Worker URL
-    BACKEND_URL: 'https://matrix.kenanprins274.workers.dev',
+    // Your deployed Vercel backend URL
+    BACKEND_URL: 'https://matrix-three-jet.vercel.app',
 
     // Path inside your GitHub repo where the video is stored
     GITHUB_VIDEO_PATH: 'uploads/current-video.mp4',

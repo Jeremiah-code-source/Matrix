@@ -46,8 +46,8 @@ let count = 3;
 
 // Configuration: Choose what to display ('video', 'gif', 'both', or 'none')
 const mediaConfig = {
-    showVideo: true,  // Set to true to show video
-    showGif: false,   // Set to true to show GIF
+showVideo: false, // Enabled only when a real video URL is found
+showGif: false,   // Set to true to show GIF
     videoPath: 'birthday.mp4',  // Path to your video file
     gifPath: 'birthday.gif',     // Path to your GIF file
     backendURL: typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : 'YOUR_BACKEND_URL_HERE'
@@ -115,23 +115,29 @@ async function getFileFromIndexedDB(key) {
     });
 }
 
-// Load saved media — prefers GitHub (via Cloudflare Worker) over IndexedDB
+// Load saved media — prefers backend (via Vercel server) over IndexedDB
 async function loadSavedMedia() {
     try {
-        // Primary: fetch the latest video URL from GitHub via the Cloudflare Worker
+        // Primary: fetch the current video URL from the Vercel backend
         if (USE_BACKEND) {
             try {
-                const data = await GitHubVideoService.getMedia();
-
-                // Worker returns { download_url: '...' } sourced from the GitHub API
-                if (data && data.download_url) {
-                    mediaConfig.videoPath = data.download_url;
-                    mediaConfig.showVideo = true;
-                    console.log('Video loaded from GitHub via Cloudflare Worker');
-                    return;
+                const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
+                if (workerURL) {
+                    const response = await fetch(`${workerURL}/get-media`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        // server.js returns { videoURL: '/uploads/current-video.mp4' }
+                        if (data && data.videoURL) {
+                            // Build absolute URL so other devices can reach it
+                            mediaConfig.videoPath = `${workerURL}${data.videoURL}`;
+                            mediaConfig.showVideo = true;
+                            console.log('Video URL loaded from backend:', mediaConfig.videoPath);
+                            return;
+                        }
+                    }
                 }
             } catch (backendError) {
-                console.warn('Cloudflare Worker unavailable, falling back to IndexedDB:', backendError);
+                console.warn('Backend unavailable, falling back to IndexedDB:', backendError);
             }
         }
 
@@ -159,9 +165,9 @@ async function loadSavedMedia() {
 // Apply media configuration
 async function setupMedia() {
     await loadSavedMedia();
-    
+
     if (mediaConfig.showVideo && videoElement) {
-        videoElement.querySelector('source').src = mediaConfig.videoPath;
+        videoElement.src = mediaConfig.videoPath;
         videoElement.load();
     }
     if (mediaConfig.showGif && gifElement) {
@@ -169,52 +175,59 @@ async function setupMedia() {
     }
 }
 
-const timer = setInterval(() => {
-    count--;
-    if (count > 0) {
-        countdownElement.innerText = count;
-    } else {
-        clearInterval(timer);
-        countdownElement.classList.add('hidden');
-        messageElement.classList.remove('hidden');
-        
-        // Show video and/or GIF based on configuration
-        const noVideoMessage = document.getElementById('no-video-message');
-        
-        if (mediaConfig.showVideo && videoElement) {
-            videoElement.classList.remove('hidden');
-            if (noVideoMessage) noVideoMessage.classList.add('hidden');
-            
-            // Handle autoplay for mobile devices
-            const playPromise = videoElement.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    console.log('Video autoplay successful');
-                }).catch((error) => {
-                    console.log('Autoplay prevented, user interaction required:', error);
-                    // On mobile, user may need to tap to play
-                });
-            }
-        } else {
-            // Show "no video" message
-            if (noVideoMessage) {
-                noVideoMessage.classList.remove('hidden');
-                // Make it clickable to upload video
-                noVideoMessage.addEventListener('dblclick', () => {
-                    videoFileInput.click();
-                });
-            }
-        }
-        
-        if (mediaConfig.showGif && gifElement) {
-            gifElement.classList.remove('hidden');
-        }
-    }
-}, 1000);
+// Start countdown only after media is ready to avoid race condition
+async function init() {
+    await setupMedia();
 
-// Initialize media on page load
-setupMedia();
+    const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownElement.innerText = count;
+        } else {
+            clearInterval(timer);
+            countdownElement.classList.add('hidden');
+            messageElement.classList.remove('hidden');
+
+            // Show video and/or GIF based on configuration
+            const noVideoMessage = document.getElementById('no-video-message');
+
+            if (mediaConfig.showVideo && videoElement) {
+                // Re-apply source in case it was updated by setupMedia
+                if (videoElement.getAttribute('src') !== mediaConfig.videoPath) {
+                    videoElement.src = mediaConfig.videoPath;
+                    videoElement.load();
+                }
+                videoElement.classList.remove('hidden');
+                if (noVideoMessage) noVideoMessage.classList.add('hidden');
+
+                // Handle autoplay for mobile devices
+                const playPromise = videoElement.play();
+
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log('Video autoplay successful');
+                    }).catch((error) => {
+                        console.log('Autoplay prevented, user interaction required:', error);
+                    });
+                }
+            } else {
+                // Show "no video" message
+                if (noVideoMessage) {
+                    noVideoMessage.classList.remove('hidden');
+                    noVideoMessage.addEventListener('dblclick', () => {
+                        videoFileInput.click();
+                    });
+                }
+            }
+
+            if (mediaConfig.showGif && gifElement) {
+                gifElement.classList.remove('hidden');
+            }
+        }
+    }, 1000);
+}
+
+init();
 
 // Media change functionality - double-click on video/gif to change
 const videoFileInput = document.getElementById('video-file-input');
@@ -282,11 +295,21 @@ videoFileInput.addEventListener('change', async (e) => {
         // Upload to GitHub via the Cloudflare Worker for cross-device sharing
         if (USE_BACKEND) {
             try {
-                const data = await GitHubVideoService.uploadVideo(file);
-                console.log('Video uploaded to GitHub via Cloudflare Worker:', data);
-                alert('Video uploaded! It will now be available on all devices.');
+                const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
+                if (workerURL) {
+                    const formData = new FormData();
+                    formData.append('video', file);
+                    const response = await fetch(`${workerURL}/upload-video`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+                    const data = await response.json();
+                    console.log('Video uploaded to backend:', data);
+                    alert('Video uploaded! It will now be available on all devices.');
+                }
             } catch (uploadError) {
-                console.error('Error uploading video to GitHub:', uploadError);
+                console.error('Error uploading video to backend:', uploadError);
             }
         }
     }
@@ -312,8 +335,7 @@ gifFileInput.addEventListener('change', async (e) => {
 // Helper function to load video
 function loadVideoFromUrl(url) {
     if (videoElement) {
-        const source = videoElement.querySelector('source');
-        source.src = url;
+        videoElement.src = url;
         videoElement.load();
         videoElement.classList.remove('hidden');
         

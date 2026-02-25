@@ -139,33 +139,16 @@ img.media-item {
 
 .no-video-message {
     text-align: center;
-    padding: 40px 20px;
-    border: 3px dashed #4169E1;
-    border-radius: 15px;
-    background: rgba(65, 105, 225, 0.1);
+    padding: 6px 0;
+    font-size: 0.8rem;
+    opacity: 0.7;
     cursor: pointer;
-    transition: all 0.3s ease;
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    color: #4169E1;
+    transition: opacity 0.3s ease;
 }
 
 .no-video-message:hover {
-    background: rgba(65, 105, 225, 0.2);
-    border-color: #1E90FF;
-    transform: scale(1.02);
-}
-
-.no-video-message p {
-    font-size: 1.5rem;
-    margin: 10px 0;
-}
-
-.no-video-message .small-text {
-    font-size: 1rem;
-    opacity: 0.8;
+    opacity: 1;
 }
 
 /* Mobile-specific styles */

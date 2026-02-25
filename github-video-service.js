@@ -66,5 +66,14 @@ const GitHubVideoService = (() => {
         return response.json();
     }
 
-    return { uploadVideo, getMedia };
+    // Returns the Worker proxy URL that streams the video directly
+    function getVideoProxyURL() {
+        const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
+        if (!workerURL) {
+            throw new Error('CONFIG.BACKEND_URL is not defined');
+        }
+        return `${workerURL}/get-video`;
+    }
+
+    return { uploadVideo, getMedia, getVideoProxyURL };
 })();
