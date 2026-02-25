@@ -132,11 +132,27 @@ async function loadSavedMedia() {
                 console.log('Video fetched via GitHub API (no CDN cache)');
                 return;
             } catch (e) {
-                console.warn('GitHub API fetch failed, falling back to IndexedDB:', e);
+                console.warn('GitHub API fetch failed, falling back to public raw URL:', e);
             }
         }
 
-        // Fallback: IndexedDB (local device only)
+        // Fallback: try the public GitHub raw URL (works on all devices without a token)
+        if (typeof CONFIG !== 'undefined' && CONFIG.GITHUB_RAW_URL) {
+            try {
+                const rawUrl = CONFIG.GITHUB_RAW_URL + '?t=' + Date.now();
+                const response = await fetch(rawUrl, { method: 'HEAD' });
+                if (response.ok) {
+                    mediaConfig.videoPath = rawUrl;
+                    mediaConfig.showVideo = true;
+                    console.log('Video loaded from public GitHub raw URL');
+                    return;
+                }
+            } catch (e) {
+                console.warn('Public GitHub raw URL not available, falling back to IndexedDB:', e);
+            }
+        }
+
+        // Last resort: IndexedDB (local device only)
         const savedVideo = await getFileFromIndexedDB('lastUsedVideo');
         const savedGif = await getFileFromIndexedDB('lastUsedGif');
 
@@ -224,7 +240,7 @@ async function init() {
 
 init();
 
-// Poll GitHub every 10 seconds — silently swap the video if another device uploaded a new one
+// Poll GitHub every 15 seconds — silently swap the video if another device uploaded a new one
 if (USE_BACKEND) {
     setInterval(async () => {
         try {
@@ -238,6 +254,29 @@ if (USE_BACKEND) {
                 videoElement.load();
                 videoElement.play().catch(() => {});
                 console.log('Video updated automatically.');
+            }
+        } catch (e) {
+            // Polling errors are silent — don't disrupt the page
+        }
+    }, 15000);
+} else if (typeof CONFIG !== 'undefined' && CONFIG.GITHUB_RAW_URL) {
+    // No token: poll by re-fetching the raw URL every 15 seconds to pick up new uploads
+    setInterval(async () => {
+        try {
+            const rawUrl = CONFIG.GITHUB_RAW_URL + '?t=' + Date.now();
+            const response = await fetch(rawUrl, { method: 'HEAD' });
+            if (response.ok && mediaConfig.videoPath !== rawUrl) {
+                mediaConfig.videoPath = rawUrl;
+                videoElement.src = rawUrl;
+                videoElement.load();
+                videoElement.play().catch(() => {});
+                if (mediaConfig.showVideo === false) {
+                    mediaConfig.showVideo = true;
+                    videoElement.classList.remove('hidden');
+                    const noVideoMessage = document.getElementById('no-video-message');
+                    if (noVideoMessage) noVideoMessage.classList.add('hidden');
+                }
+                console.log('Video updated from public GitHub raw URL.');
             }
         } catch (e) {
             // Polling errors are silent — don't disrupt the page
