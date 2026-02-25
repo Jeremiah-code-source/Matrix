@@ -115,10 +115,10 @@ async function getFileFromIndexedDB(key) {
     });
 }
 
-// Load saved media — prefers backend (via Vercel server) over IndexedDB
+// Load saved media — fetches video URL from Cloudflare Worker (backed by GitHub)
 async function loadSavedMedia() {
     try {
-        // Primary: fetch the current video URL from the Vercel backend
+        // Primary: fetch the current video URL from the Cloudflare Worker
         if (USE_BACKEND) {
             try {
                 const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
@@ -126,18 +126,17 @@ async function loadSavedMedia() {
                     const response = await fetch(`${workerURL}/get-media`);
                     if (response.ok) {
                         const data = await response.json();
-                        // server.js returns { videoURL: '/uploads/current-video.mp4' }
-                        if (data && data.videoURL) {
-                            // Build absolute URL so other devices can reach it
-                            mediaConfig.videoPath = `${workerURL}${data.videoURL}`;
+                        // Cloudflare Worker returns { download_url: '...' } from GitHub API
+                        if (data && data.download_url) {
+                            mediaConfig.videoPath = data.download_url;
                             mediaConfig.showVideo = true;
-                            console.log('Video URL loaded from backend:', mediaConfig.videoPath);
+                            console.log('Video URL loaded from Cloudflare Worker:', mediaConfig.videoPath);
                             return;
                         }
                     }
                 }
             } catch (backendError) {
-                console.warn('Backend unavailable, falling back to IndexedDB:', backendError);
+                console.warn('Cloudflare Worker unavailable, falling back to IndexedDB:', backendError);
             }
         }
 
@@ -292,22 +291,12 @@ videoFileInput.addEventListener('change', async (e) => {
             console.error('Error saving video to IndexedDB:', error);
         }
         
-        // Upload to GitHub via the Cloudflare Worker for cross-device sharing
+        // Upload to Cloudflare Worker ? GitHub for cross-device sharing
         if (USE_BACKEND) {
             try {
-                const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
-                if (workerURL) {
-                    const formData = new FormData();
-                    formData.append('video', file);
-                    const response = await fetch(`${workerURL}/upload-video`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-                    const data = await response.json();
-                    console.log('Video uploaded to backend:', data);
-                    alert('Video uploaded! It will now be available on all devices.');
-                }
+                const data = await GitHubVideoService.uploadVideo(file);
+                console.log('Video uploaded to GitHub via Cloudflare Worker:', data);
+                alert('Video uploaded! It will now be available on all devices.');
             } catch (uploadError) {
                 console.error('Error uploading video to backend:', uploadError);
             }
