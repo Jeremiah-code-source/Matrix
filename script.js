@@ -53,8 +53,10 @@ showGif: false,   // Set to true to show GIF
     backendURL: typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : 'YOUR_BACKEND_URL_HERE'
 };
 
-// Use both IndexedDB (for local storage) and backend (for cross-device sharing)
-const USE_BACKEND = typeof CONFIG !== 'undefined' ? CONFIG.USE_BACKEND : false;
+// Upload is enabled when a real GitHub token is set in config.js
+const USE_BACKEND = typeof CONFIG !== 'undefined' &&
+    CONFIG.GITHUB_TOKEN &&
+    CONFIG.GITHUB_TOKEN !== 'YOUR_GITHUB_TOKEN_HERE';
 
 // IndexedDB setup for storing large video files locally
 const DB_NAME = 'BirthdayMediaDB';
@@ -118,25 +120,19 @@ async function getFileFromIndexedDB(key) {
 // Load saved media — fetches video URL from Cloudflare Worker (backed by GitHub)
 async function loadSavedMedia() {
     try {
-        // Primary: fetch the current video URL from the Cloudflare Worker
-        if (USE_BACKEND) {
+        // Primary: serve video directly from GitHub raw URL (no backend needed)
+        const rawURL = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_RAW_URL : null;
+        if (rawURL) {
             try {
-                const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
-                if (workerURL) {
-                    const response = await fetch(`${workerURL}/get-media`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        // Cloudflare Worker returns { download_url: '...' } from GitHub API
-                        if (data && data.download_url) {
-                            mediaConfig.videoPath = data.download_url;
-                            mediaConfig.showVideo = true;
-                            console.log('Video URL loaded from Cloudflare Worker:', mediaConfig.videoPath);
-                            return;
-                        }
-                    }
+                const test = await fetch(rawURL, { method: 'HEAD' });
+                if (test.ok) {
+                    mediaConfig.videoPath = rawURL;
+                    mediaConfig.showVideo = true;
+                    console.log('Video loaded from GitHub raw URL:', rawURL);
+                    return;
                 }
-            } catch (backendError) {
-                console.warn('Cloudflare Worker unavailable, falling back to IndexedDB:', backendError);
+            } catch (e) {
+                console.warn('GitHub raw URL unavailable, falling back to IndexedDB:', e);
             }
         }
 
@@ -291,14 +287,22 @@ videoFileInput.addEventListener('change', async (e) => {
             console.error('Error saving video to IndexedDB:', error);
         }
         
-        // Upload to Cloudflare Worker ? GitHub for cross-device sharing
+        // Upload directly to GitHub so all devices get the new video
         if (USE_BACKEND) {
+            const noVideoMessage = document.getElementById('no-video-message');
             try {
-                const data = await GitHubVideoService.uploadVideo(file);
-                console.log('Video uploaded to GitHub via Cloudflare Worker:', data);
-                alert('Video uploaded! It will now be available on all devices.');
+                if (noVideoMessage) noVideoMessage.innerText = '? Uploading to GitHub...';
+                await GitHubVideoService.uploadVideo(file);
+                // Point all devices at the updated raw URL
+                const rawURL = CONFIG.GITHUB_RAW_URL;
+                mediaConfig.videoPath = rawURL;
+                videoElement.src = rawURL;
+                videoElement.load();
+                if (noVideoMessage) noVideoMessage.classList.add('hidden');
+                console.log('Video uploaded to GitHub — available on all devices.');
             } catch (uploadError) {
-                console.error('Error uploading video to backend:', uploadError);
+                console.error('Error uploading video to GitHub:', uploadError);
+                if (noVideoMessage) noVideoMessage.innerText = '? Upload failed — video only saved locally.';
             }
         }
     }

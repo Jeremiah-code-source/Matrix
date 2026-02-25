@@ -6,6 +6,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/config.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "*.html",
       "use": "@vercel/static"
     },
@@ -19,6 +23,10 @@
     }
   ],
   "routes": [
+    {
+      "src": "/config.js",
+      "dest": "api/config.js"
+    },
     {
       "src": "/upload-video",
       "dest": "server.js"
@@ -37,3 +45,4 @@
     }
   ]
 }
+

@@ -1,6 +1,6 @@
 // GitHub Video Service
-// Converts a File object to Base64 and uploads it via the Cloudflare Worker proxy.
-// The Worker handles GitHub API authentication and CORS on the server side.
+// Uploads video directly to the Matrix_videos GitHub repo via the GitHub Contents API.
+// No backend or Cloudflare Worker needed.
 
 const GitHubVideoService = (() => {
     // Convert a File/Blob to a Base64-encoded string (data stripped of prefix)
@@ -8,7 +8,6 @@ const GitHubVideoService = (() => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
-                // result is "data:<mime>;base64,<content>" — strip the prefix
                 const base64 = reader.result.split(',')[1];
                 resolve(base64);
             };
@@ -17,25 +16,51 @@ const GitHubVideoService = (() => {
         });
     }
 
-    // Upload a video File to GitHub via the Cloudflare Worker
+    // Get the current SHA of the file if it exists (required by GitHub API to overwrite)
+    async function getFileSHA(token, owner, repo, branch, filePath) {
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`,
+            { headers: { Authorization: `token ${token}` } }
+        );
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`Failed to get file SHA (${response.status})`);
+        const data = await response.json();
+        return data.sha;
+    }
+
+    // Upload a video File directly to GitHub, overwriting current-video.mp4
     async function uploadVideo(file) {
-        const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
-        if (!workerURL) {
-            throw new Error('CONFIG.BACKEND_URL is not defined');
+        const token     = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_TOKEN     : null;
+        const owner     = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_OWNER     : null;
+        const repo      = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_REPO      : null;
+        const branch    = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_BRANCH    : 'main';
+        const filePath  = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_FILE_PATH : 'current-video.mp4';
+
+        if (!token || token === 'YOUR_GITHUB_TOKEN_HERE') {
+            throw new Error('GITHUB_TOKEN is not set in config.js');
         }
 
         const base64Content = await fileToBase64(file);
+        const sha = await getFileSHA(token, owner, repo, branch, filePath);
 
-        const response = await fetch(`${workerURL}/upload-video`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                filename: file.name,
-                content: base64Content
-            })
-        });
+        const body = {
+            message: 'Update video',
+            content: base64Content,
+            branch: branch
+        };
+        if (sha) body.sha = sha;
+
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
+            {
+                method: 'PUT',
+                headers: {
+                    Authorization: `token ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            }
+        );
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -45,35 +70,5 @@ const GitHubVideoService = (() => {
         return response.json();
     }
 
-    // Fetch the latest video metadata (download_url) from the Cloudflare Worker
-    async function getMedia() {
-        const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
-        if (!workerURL) {
-            throw new Error('CONFIG.BACKEND_URL is not defined');
-        }
-
-        const response = await fetch(`${workerURL}/get-media`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch media (${response.status})`);
-        }
-
-        return response.json();
-    }
-
-    // Returns the Worker proxy URL that streams the video directly
-    function getVideoProxyURL() {
-        const workerURL = typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : null;
-        if (!workerURL) {
-            throw new Error('CONFIG.BACKEND_URL is not defined');
-        }
-        return `${workerURL}/get-video`;
-    }
-
-    return { uploadVideo, getMedia, getVideoProxyURL };
+    return { uploadVideo };
 })();
