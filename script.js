@@ -120,26 +120,19 @@ async function getFileFromIndexedDB(key) {
 // Track the SHA of the currently loaded video to detect remote changes
 let currentVideoSHA = null;
 
-// Load saved media — fetches video URL from Cloudflare Worker (backed by GitHub)
+// Load saved media — downloads video via GitHub API to bypass CDN cache
 async function loadSavedMedia() {
     try {
-        // Primary: serve video directly from GitHub raw URL (no backend needed)
-        const rawURL = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_RAW_URL : null;
-        if (rawURL) {
+        if (USE_BACKEND) {
             try {
-                const test = await fetch(rawURL, { method: 'HEAD' });
-                if (test.ok) {
-                    // Record the current SHA so polling can detect future changes
-                    if (USE_BACKEND) {
-                        currentVideoSHA = await GitHubVideoService.getCurrentSHA();
-                    }
-                    mediaConfig.videoPath = `${rawURL}?t=${Date.now()}`;
-                    mediaConfig.showVideo = true;
-                    console.log('Video loaded from GitHub raw URL:', rawURL);
-                    return;
-                }
+                const { blobURL, sha } = await GitHubVideoService.fetchVideoBlob();
+                currentVideoSHA = sha;
+                mediaConfig.videoPath = blobURL;
+                mediaConfig.showVideo = true;
+                console.log('Video fetched via GitHub API (no CDN cache)');
+                return;
             } catch (e) {
-                console.warn('GitHub raw URL unavailable, falling back to IndexedDB:', e);
+                console.warn('GitHub API fetch failed, falling back to IndexedDB:', e);
             }
         }
 
@@ -237,18 +230,19 @@ if (USE_BACKEND) {
         try {
             const latestSHA = await GitHubVideoService.getCurrentSHA();
             if (latestSHA && latestSHA !== currentVideoSHA) {
-                currentVideoSHA = latestSHA;
-                const newURL = `${CONFIG.GITHUB_RAW_URL}?t=${Date.now()}`;
-                mediaConfig.videoPath = newURL;
-                videoElement.src = newURL;
+                console.log('New video detected — downloading...');
+                const { blobURL, sha } = await GitHubVideoService.fetchVideoBlob();
+                currentVideoSHA = sha;
+                mediaConfig.videoPath = blobURL;
+                videoElement.src = blobURL;
                 videoElement.load();
                 videoElement.play().catch(() => {});
-                console.log('New video detected — updated automatically.');
+                console.log('Video updated automatically.');
             }
         } catch (e) {
             // Polling errors are silent — don't disrupt the page
         }
-    }, 10000);
+    }, 15000);
 }
 
 // Media change functionality - double-click on video/gif to change

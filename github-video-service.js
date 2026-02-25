@@ -80,5 +80,31 @@ const GitHubVideoService = (() => {
         return getFileSHA(token, owner, repo, branch, filePath);
     }
 
-    return { uploadVideo, getCurrentSHA };
-})();
+    // Fetches the video via GitHub API and returns a local blob URL.
+    // This bypasses the CDN cache (max-age=300) that raw.githubusercontent.com applies.
+    async function fetchVideoBlob() {
+        const token    = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_TOKEN    : null;
+        const owner    = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_OWNER    : null;
+        const repo     = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_REPO     : null;
+        const branch   = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_BRANCH   : 'main';
+        const filePath = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_FILE_PATH : 'current-video.mp4';
+
+        // Step 1: get the API metadata to find the current download_url
+        const meta = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}&t=${Date.now()}`,
+            { headers: { Authorization: `token ${token}`, 'Cache-Control': 'no-cache' } }
+        );
+        if (!meta.ok) throw new Error(`Failed to get video metadata (${meta.status})`);
+        const data = await meta.json();
+
+        // Step 2: download the actual bytes via the authenticated download_url
+        const videoRes = await fetch(data.download_url, {
+            headers: { Authorization: `token ${token}`, 'Cache-Control': 'no-cache' }
+        });
+        if (!videoRes.ok) throw new Error(`Failed to download video (${videoRes.status})`);
+
+        const blob = await videoRes.blob();
+        return { blobURL: URL.createObjectURL(blob), sha: data.sha };
+    }
+
+    return { uploadVideo, getCurrentSHA, fetchVideoBlob };
