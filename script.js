@@ -136,20 +136,19 @@ async function loadSavedMedia() {
             }
         }
 
-        // Fallback: try the public GitHub raw URL (works on all devices without a token)
-        if (typeof CONFIG !== 'undefined' && CONFIG.GITHUB_RAW_URL) {
-            try {
-                const rawUrl = CONFIG.GITHUB_RAW_URL + '?t=' + Date.now();
-                const response = await fetch(rawUrl, { method: 'HEAD' });
-                if (response.ok) {
-                    mediaConfig.videoPath = rawUrl;
-                    mediaConfig.showVideo = true;
-                    console.log('Video loaded from public GitHub raw URL');
-                    return;
-                }
-            } catch (e) {
-                console.warn('Public GitHub raw URL not available, falling back to IndexedDB:', e);
+        // Fallback: use the public GitHub Contents API (no token needed for public repos)
+        // This gives us the real SHA + a cache-busted download URL, avoiding stale CDN responses.
+        try {
+            const info = await GitHubVideoService.fetchPublicVideoInfo();
+            if (info) {
+                currentVideoSHA = info.sha;
+                mediaConfig.videoPath = info.downloadUrl;
+                mediaConfig.showVideo = true;
+                console.log('Video loaded from public GitHub Contents API');
+                return;
             }
+        } catch (e) {
+            console.warn('Public GitHub Contents API failed, falling back to IndexedDB:', e);
         }
 
         // Last resort: IndexedDB (local device only)
@@ -259,24 +258,26 @@ if (USE_BACKEND) {
             // Polling errors are silent — don't disrupt the page
         }
     }, 15000);
-} else if (typeof CONFIG !== 'undefined' && CONFIG.GITHUB_RAW_URL) {
-    // No token: poll by re-fetching the raw URL every 15 seconds to pick up new uploads
+} else {
+    // No token: poll the public GitHub Contents API every 15 seconds.
+    // The SHA tells us if the file actually changed, avoiding false positives from raw URL 200s.
     setInterval(async () => {
         try {
-            const rawUrl = CONFIG.GITHUB_RAW_URL + '?t=' + Date.now();
-            const response = await fetch(rawUrl, { method: 'HEAD' });
-            if (response.ok && mediaConfig.videoPath !== rawUrl) {
-                mediaConfig.videoPath = rawUrl;
-                videoElement.src = rawUrl;
+            const info = await GitHubVideoService.fetchPublicVideoInfo();
+            if (info && info.sha !== currentVideoSHA) {
+                console.log('New video detected via public API — updating...');
+                currentVideoSHA = info.sha;
+                mediaConfig.videoPath = info.downloadUrl;
+                videoElement.src = info.downloadUrl;
                 videoElement.load();
                 videoElement.play().catch(() => {});
-                if (mediaConfig.showVideo === false) {
+                if (!mediaConfig.showVideo) {
                     mediaConfig.showVideo = true;
                     videoElement.classList.remove('hidden');
                     const noVideoMessage = document.getElementById('no-video-message');
                     if (noVideoMessage) noVideoMessage.classList.add('hidden');
                 }
-                console.log('Video updated from public GitHub raw URL.');
+                console.log('Video updated from public GitHub Contents API.');
             }
         } catch (e) {
             // Polling errors are silent — don't disrupt the page

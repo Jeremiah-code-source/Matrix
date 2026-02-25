@@ -107,4 +107,22 @@ const GitHubVideoService = (() => {
         return { blobURL: URL.createObjectURL(blob), sha: data.sha };
     }
 
-    return { uploadVideo, getCurrentSHA, fetchVideoBlob };
+    // Fetches metadata for a public repo file without needing a token.
+    // Returns { sha, downloadUrl } so callers can detect changes and build a cache-busted URL.
+    async function fetchPublicVideoInfo() {
+        const owner    = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_OWNER     : null;
+        const repo     = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_REPO      : null;
+        const branch   = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_BRANCH    : 'main';
+        const filePath = typeof CONFIG !== 'undefined' ? CONFIG.GITHUB_FILE_PATH : 'current-video.mp4';
+
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}&t=${Date.now()}`,
+            { headers: { 'Cache-Control': 'no-cache' } }
+        );
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`Failed to get public video info (${response.status})`);
+        const data = await response.json();
+        return { sha: data.sha, downloadUrl: data.download_url };
+    }
+
+    return { uploadVideo, getCurrentSHA, fetchVideoBlob, fetchPublicVideoInfo };
