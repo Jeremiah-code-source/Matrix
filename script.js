@@ -439,6 +439,4 @@ function loadGifFromUrl(url) {
     }
 }
 
-
-
 setInterval(drawMatrix, 33);
