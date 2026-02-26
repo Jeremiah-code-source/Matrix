@@ -177,6 +177,7 @@ async function setupMedia() {
     await loadSavedMedia();
 
     if (mediaConfig.showVideo && videoElement) {
+        clearVideoSources(videoElement);
         videoElement.src = mediaConfig.videoPath;
         videoElement.load();
     }
@@ -204,6 +205,7 @@ async function init() {
             if (mediaConfig.showVideo && videoElement) {
                 // Re-apply source in case it was updated by setupMedia
                 if (videoElement.getAttribute('src') !== mediaConfig.videoPath) {
+                    clearVideoSources(videoElement);
                     videoElement.src = mediaConfig.videoPath;
                     videoElement.load();
                 }
@@ -249,6 +251,7 @@ if (USE_BACKEND) {
                 const { blobURL, sha } = await GitHubVideoService.fetchVideoBlob();
                 currentVideoSHA = sha;
                 mediaConfig.videoPath = blobURL;
+                clearVideoSources(videoElement);
                 videoElement.src = blobURL;
                 videoElement.load();
                 videoElement.play().catch(() => {});
@@ -268,6 +271,7 @@ if (USE_BACKEND) {
                 console.log('New video detected via public API — updating...');
                 currentVideoSHA = info.sha;
                 mediaConfig.videoPath = info.downloadUrl;
+                clearVideoSources(videoElement);
                 videoElement.src = info.downloadUrl;
                 videoElement.load();
                 videoElement.play().catch(() => {});
@@ -386,9 +390,18 @@ gifFileInput.addEventListener('change', async (e) => {
     }
 });
 
+// Remove any <source> children from the video element.
+// If <source> nodes are present, setting .src alone is ignored on some browsers.
+function clearVideoSources(el) {
+    while (el.firstChild && el.firstChild.tagName === 'SOURCE') {
+        el.removeChild(el.firstChild);
+    }
+}
+
 // Helper function to load video
 function loadVideoFromUrl(url) {
     if (videoElement) {
+        clearVideoSources(videoElement);
         videoElement.src = url;
         videoElement.load();
         videoElement.classList.remove('hidden');
